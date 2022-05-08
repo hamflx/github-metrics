@@ -1,5 +1,7 @@
 use std::{cmp::Ordering, collections::HashMap};
 
+use log::warn;
+use poem_openapi::Object;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 use crate::version::VERSION;
@@ -11,11 +13,11 @@ pub struct GitHubTrafficsSync {
 }
 
 impl GitHubTrafficsSync {
-    pub fn new(client: GitHubClient, db_file: String) -> Self {
+    pub fn new(client: GitHubClient, db_file: &str) -> Self {
         Self {
             client,
             repos_to_sync: vec![],
-            db_file,
+            db_file: db_file.to_owned(),
         }
     }
 
@@ -31,7 +33,10 @@ impl GitHubTrafficsSync {
     }
 
     async fn do_sync(&self) -> anyhow::Result<()> {
-        let mut stats = self.read_persisted_stats()?;
+        let mut stats = self.read_persisted_stats().unwrap_or_else(|e| {
+            warn!("Failed to read persisted stats, using empty instead: {}", e);
+            GitHubRepoStats::default()
+        });
         for repo in &self.repos_to_sync {
             let clones = self
                 .client
@@ -53,15 +58,7 @@ impl GitHubTrafficsSync {
     }
 
     fn read_persisted_stats(&self) -> anyhow::Result<GitHubRepoStats> {
-        let content = match std::fs::read_to_string(&self.db_file) {
-            Ok(c) => c,
-            Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
-                return Ok(GitHubRepoStats::default());
-            }
-            Err(err) => return Err(err.into()),
-        };
-        let stats: GitHubRepoStats = serde_json::from_str(&content)?;
-        Ok(stats)
+        read_persisted_stats(self.db_file.as_str())
     }
 
     fn write_persisted_stats(&self, stats: &GitHubRepoStats) -> anyhow::Result<()> {
@@ -136,9 +133,9 @@ impl std::fmt::Display for GitHubAccessError {
 
 impl std::error::Error for GitHubAccessError {}
 
-type GitHubRepoStats = HashMap<String, GitHubRepoTraffics>;
+pub type GitHubRepoStats = HashMap<String, GitHubRepoTraffics>;
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Object)]
 pub struct GitHubRepoTraffics {
     pub clones: Vec<GitHubMetricTrafficItem>,
     pub views: Vec<GitHubMetricTrafficItem>,
@@ -158,7 +155,7 @@ pub struct GitHubMetricTrafficViews {
     pub views: Vec<GitHubMetricTrafficItem>,
 }
 
-#[derive(Default, Debug, Clone, Serialize, Deserialize)]
+#[derive(Default, Debug, Clone, Serialize, Deserialize, Object)]
 pub struct GitHubMetricTrafficItem {
     pub timestamp: String,
     pub count: i64,
@@ -191,4 +188,16 @@ fn find_and_insert<T>(target: &mut Vec<T>, source: Vec<T>, cmp: impl Fn(&T, &T) 
             }
         }
     }
+}
+
+pub fn read_persisted_stats(db_file: &str) -> anyhow::Result<GitHubRepoStats> {
+    let content = match std::fs::read_to_string(db_file) {
+        Ok(c) => c,
+        Err(err) if err.kind() == std::io::ErrorKind::NotFound => {
+            return Ok(GitHubRepoStats::default());
+        }
+        Err(err) => return Err(err.into()),
+    };
+    let stats: GitHubRepoStats = serde_json::from_str(&content)?;
+    Ok(stats)
 }

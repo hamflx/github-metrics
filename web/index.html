@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub Metrics</title>
+
+  <style type="text/css">
+    .chart-list {
+      display: flex;
+    }
+    .chart {
+      width: 600px;
+      height: 400px;
+    }
+  </style>
+</head>
+<body>
+  <div>
+    <h1>GitHub Metrics</h1>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.2/dayjs.min.js" integrity="sha512-Ot7ArUEhJDU0cwoBNNnWe487kjL5wAOsIYig8llY/l0P2TUFwgsAHVmrZMHsT8NGo+HwkjTJsNErS6QqIkBxDw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.3.2/echarts.min.js" integrity="sha512-weWXHm0Ws2cZKjjwugRMnnOAx9uCP/wUVf84W7/fXQimwYUK28zPDGPprDozomQLpKv6U99xN9PI9+yLI9qxNw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+    <script type="module">
+      const repos = (await (await fetch('/api/traffics')).json()).data
+
+      function createRepoGraph (container, data, title) {
+        const div = document.createElement('div')
+        div.className = 'chart'
+        container.appendChild(div)
+
+        const dataMap = data.reduce(
+          (map, item) => {
+            map[dayjs(item.timestamp).format('YYYY-MM-DD')] = item
+            return map
+          },
+          {}
+        )
+        const beginDate = dayjs(data[0].timestamp)
+        const endDate = dayjs(data[data.length - 1].timestamp)
+        const days = endDate.diff(beginDate, 'day') + 1
+        const [xAxisData, byCountData, byUniqueData] = Array.from({ length: days }).map((_, i) => {
+          const theDay = dayjs(beginDate).add(i, 'day')
+          const date = theDay.format('YYYY-MM-DD')
+          const uniques = dataMap[date] ? dataMap[date].uniques : 0
+          const count = dataMap[date] ? dataMap[date].count : 0
+          return { date, uniques, count }
+        }).reduce(([xAxis, byCount, byUnique], item) => {
+          xAxis.push(item.date)
+          byCount.push(item.count)
+          byUnique.push(item.uniques)
+          return [xAxis, byCount, byUnique]
+        }, [[], [], []])
+
+        const myChart = echarts.init(div);
+
+        const option = {
+          title: {
+            text: title
+          },
+          tooltip: {
+            trigger: 'axis'
+          },
+          legend: {},
+          xAxis: {
+            data: xAxisData
+          },
+          yAxis: {},
+          series: [
+            {
+              name: 'count',
+              type: 'line',
+              data: byCountData
+            },
+            {
+              name: 'unique',
+              type: 'line',
+              data: byUniqueData
+            }
+          ]
+        };
+
+        myChart.setOption(option);
+      }
+
+      function createRepoCharts (repo, stats) {
+        const div = document.createElement('div')
+        div.className = 'repo'
+        document.body.appendChild(div)
+
+        const h2 = document.createElement('h2')
+        h2.innerText = repo
+        div.appendChild(h2)
+
+        const container = document.createElement('div')
+        container.className = 'chart-list'
+        div.appendChild(container)
+
+        createRepoGraph(container, stats.clones, '克隆')
+        createRepoGraph(container, stats.views, '访问')
+      }
+
+      Object.entries(repos).forEach(([repo, stats]) => createRepoCharts(repo, stats))
+    </script>
+  </div>
+</body>
+</html>
