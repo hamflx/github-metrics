@@ -27,7 +27,7 @@ impl WebServer {
             .server(format!("http://localhost:{}/api", port));
         let ui = api_service.swagger_ui();
 
-        Server::new(TcpListener::bind(format!("127.0.0.1:{}", port)))
+        Server::new(TcpListener::bind(format!("0.0.0.0:{}", port)))
             .run(
                 Route::new()
                     .nest("/api", api_service)
