@@ -9,10 +9,24 @@
   <style type="text/css">
     .chart-list {
       display: flex;
+      flex-wrap: wrap;
     }
     .chart {
+      position: relative;
+      flex: 1 1 600px;
       width: 600px;
       height: 400px;
+    }
+    .chart-inst {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+    .chart-empty {
+      flex: 1 1 600px;
+      width: 600px;
     }
   </style>
 </head>
@@ -24,11 +38,15 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/echarts/5.3.2/echarts.min.js" integrity="sha512-weWXHm0Ws2cZKjjwugRMnnOAx9uCP/wUVf84W7/fXQimwYUK28zPDGPprDozomQLpKv6U99xN9PI9+yLI9qxNw==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
     <script type="module">
       const repos = (await (await fetch('/api/traffics')).json()).data
+      const allChartInstances = []
 
       function createRepoGraph (container, data, title) {
         const div = document.createElement('div')
         div.className = 'chart'
         container.appendChild(div)
+        const inst = document.createElement('div')
+        inst.className = 'chart-inst'
+        div.appendChild(inst)
 
         const dataMap = data.reduce(
           (map, item) => {
@@ -53,7 +71,7 @@
           return [xAxis, byCount, byUnique]
         }, [[], [], []])
 
-        const myChart = echarts.init(div);
+        const myChart = echarts.init(inst);
 
         const option = {
           title: {
@@ -79,9 +97,16 @@
               data: byUniqueData
             }
           ]
-        };
+        }
 
-        myChart.setOption(option);
+        myChart.setOption(option)
+        allChartInstances.push(myChart)
+      }
+
+      function createGraphPlaceholder (container) {
+        const div = document.createElement('div')
+        div.className = 'chart-empty'
+        container.appendChild(div)
       }
 
       function createRepoCharts (repo, stats) {
@@ -99,9 +124,17 @@
 
         createRepoGraph(container, stats.clones, '克隆')
         createRepoGraph(container, stats.views, '访问')
+        Array.from({ length: 10 }).forEach(() => createGraphPlaceholder(container))
       }
 
       Object.entries(repos).forEach(([repo, stats]) => createRepoCharts(repo, stats))
+
+      const onResize = () => {
+        allChartInstances.forEach(chart => chart.resize())
+      }
+
+      window.addEventListener('resize', onResize)
+      onResize()
     </script>
   </div>
 </body>
