@@ -118,6 +118,25 @@ impl GitHubClient {
 
         Ok(res.json().await?)
     }
+
+    pub async fn list_user_repos<T: DeserializeOwned>(&self) -> anyhow::Result<T> {
+        let client = reqwest::Client::new();
+        let res = client
+            .get(format!(
+                "https://api.github.com/users/{}/repos",
+                self.username,
+            ))
+            .header("User-Agent", format!("github-metrics v{}", VERSION))
+            .basic_auth(&self.username, Some(&self.access_token))
+            .send()
+            .await?;
+
+        if res.status().as_u16() == 403 {
+            return Err(GitHubAccessError::AccessForbidden.into());
+        }
+
+        Ok(res.json().await?)
+    }
 }
 
 #[derive(Debug)]
@@ -132,6 +151,17 @@ impl std::fmt::Display for GitHubAccessError {
 }
 
 impl std::error::Error for GitHubAccessError {}
+
+#[derive(Default, Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GitHubRepo {
+    pub id: i64,
+    pub name: String,
+    #[serde(rename = "full_name")]
+    pub full_name: String,
+    pub private: bool,
+    pub fork: bool,
+}
 
 pub type GitHubRepoStats = HashMap<String, GitHubRepoTraffics>;
 
