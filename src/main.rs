@@ -17,10 +17,14 @@ async fn main() {
 
     info!("GitHub Metrics Sync v{}", VERSION);
 
-    let db_file = match std::env::var("GITHUB_DATA_DIR") {
-        Ok(path) if !path.is_empty() => path,
-        _ => "traffics.json".to_owned(),
-    };
+    let db_file = std::env::var("GITHUB_DATA_DIR")
+        .ok()
+        .filter(|p| !p.is_empty())
+        .map(std::path::PathBuf::from)
+        .filter(|p| p.is_dir())
+        .map(|p| p.join("traffics.json"))
+        .and_then(|p| p.to_str().map(String::from))
+        .unwrap_or_else(|| "traffics.json".to_owned());
 
     let username = std::env::var("GITHUB_USERNAME").expect("请设置环境变量 GITHUB_USERNAME");
     let access_token =
