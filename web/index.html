@@ -55,8 +55,8 @@
           },
           {}
         )
-        const beginDate = dayjs(data[0].timestamp)
-        const endDate = dayjs(data[data.length - 1].timestamp)
+        const beginDate = dayjs(data.length ? data[0].timestamp : undefined)
+        const endDate = dayjs(data.length ? data[data.length - 1].timestamp : undefined)
         const days = endDate.diff(beginDate, 'day') + 1
         const [xAxisData, byCountData, byUniqueData] = Array.from({ length: days }).map((_, i) => {
           const theDay = dayjs(beginDate).add(i, 'day')
